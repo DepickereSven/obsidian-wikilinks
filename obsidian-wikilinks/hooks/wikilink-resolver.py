@@ -8,7 +8,8 @@ absolute paths as additionalContext so Claude can read the right files.
 Vault path resolution order:
   1. ~/.claude/obsidian-wikilinks.json  {"vault": "/path/to/vault"}
   2. $OBSIDIAN_VAULT environment variable
-  3. ~/Documents/Obsidian (default)
+  3. Obsidian's own vault registry (auto-detected, cross-platform)
+  4. ~/Documents/Obsidian (default)
 """
 import difflib
 import json
@@ -19,6 +20,33 @@ import sys
 CONFIG_FILE = os.path.expanduser("~/.claude/obsidian-wikilinks.json")
 SKIP_DIRS = {".obsidian", ".trash", ".git", ".vault-meta"}
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+
+
+def obsidian_registry_paths():
+    """Candidate locations of Obsidian's obsidian.json across platforms."""
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "Library", "Application Support", "obsidian", "obsidian.json"),  # macOS
+        os.path.join(os.environ.get("APPDATA", ""), "obsidian", "obsidian.json"),            # Windows
+        os.path.join(home, ".config", "obsidian", "obsidian.json"),                          # Linux
+    ]
+    return [p for p in candidates if p and os.path.isfile(p)]
+
+
+def autodetect_vault():
+    """Read Obsidian's vault registry; prefer the open vault, else most recent."""
+    for path in obsidian_registry_paths():
+        try:
+            with open(path) as f:
+                vaults = json.load(f).get("vaults", {})
+        except (json.JSONDecodeError, OSError):
+            continue
+        valid = [v for v in vaults.values() if os.path.isdir(v.get("path", ""))]
+        if not valid:
+            continue
+        valid.sort(key=lambda v: (bool(v.get("open")), v.get("ts", 0)), reverse=True)
+        return valid[0]["path"]
+    return None
 
 
 def get_vault():
@@ -34,6 +62,9 @@ def get_vault():
     env = os.environ.get("OBSIDIAN_VAULT", "")
     if env:
         return os.path.expanduser(env)
+    detected = autodetect_vault()
+    if detected:
+        return detected
     return os.path.expanduser("~/Documents/Obsidian")
 
 
