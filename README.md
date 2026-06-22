@@ -19,20 +19,25 @@ claude plugin marketplace add DepickereSven/obsidian-wikilinks
 claude plugin install obsidian-wikilinks@depickeresven-obsidian-wikilinks
 ```
 
-Then tell this device where its vault lives — create
-`~/.claude/obsidian-wikilinks.json`:
+That's it — no configuration needed in the common case. The plugin reads
+Obsidian's own vault registry and uses your active vault automatically.
+
+Vault path resolution order:
+1. `~/.claude/obsidian-wikilinks.json` → `{"vault": "..."}` (explicit override)
+2. `$OBSIDIAN_VAULT` environment variable
+3. Obsidian's vault registry — auto-detected (prefers the open vault, else most
+   recently opened). Cross-platform (macOS / Windows / Linux).
+4. `~/Documents/Obsidian` (default fallback)
+
+You only need step 1 if you have **multiple vaults** and want to pin a specific
+one. Create `~/.claude/obsidian-wikilinks.json`:
 
 ```json
 { "vault": "/Users/you/Documents/Obsidian" }
 ```
 
-Vault path resolution order:
-1. `~/.claude/obsidian-wikilinks.json` → `{"vault": "..."}`
-2. `$OBSIDIAN_VAULT` environment variable
-3. `~/Documents/Obsidian` (default)
-
-The plugin itself is identical on every device; only the per-device config file
-changes. Update with `claude plugin update obsidian-wikilinks`.
+The plugin itself is identical on every device. Update with
+`claude plugin update obsidian-wikilinks`.
 
 ## Requirements
 
