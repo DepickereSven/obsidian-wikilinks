@@ -1,10 +1,13 @@
 {
   "name": "depickeresven-obsidian-wikilinks",
-  "owner": { "name": "Sven Depickere" },
+  "owner": {
+    "name": "Sven Depickere",
+    "url": "https://github.com/DepickereSven"
+  },
   "plugins": [
     {
       "name": "obsidian-wikilinks",
-      "source": "./obsidian-wikilinks",
+      "source": ".",
       "description": "Resolve [[wikilinks]] to Obsidian vault paths and inject as context."
     }
   ]
