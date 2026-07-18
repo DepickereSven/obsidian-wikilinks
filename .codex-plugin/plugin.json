@@ -1,0 +1,33 @@
+{
+  "name": "obsidian-wikilinks",
+  "version": "0.1.2",
+  "description": "Resolve Obsidian [[wikilinks]] in Codex prompts to local vault paths and inject them as context.",
+  "author": {
+    "name": "Sven Depickere",
+    "url": "https://github.com/DepickereSven"
+  },
+  "homepage": "https://github.com/DepickereSven/obsidian-wikilinks",
+  "repository": "https://github.com/DepickereSven/obsidian-wikilinks",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "wikilinks",
+    "notes",
+    "context"
+  ],
+  "interface": {
+    "displayName": "Obsidian Wikilinks",
+    "shortDescription": "Use Obsidian wikilinks in Codex prompts.",
+    "longDescription": "Resolve Obsidian [[wikilinks]] in Codex prompts to local vault files and folders so Codex can read the intended notes.",
+    "developerName": "Sven Depickere",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Summarize [[Project Brief]] and list the next actions.",
+      "Compare [[Meeting Notes]] with [[Product Roadmap]].",
+      "Use [[Research]] to answer my question about the current approach."
+    ]
+  }
+}

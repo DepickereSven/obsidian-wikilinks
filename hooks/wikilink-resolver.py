@@ -6,10 +6,11 @@ fuzzy-matches them against note names in the vault, and emits the resolved
 absolute paths as additionalContext so Claude can read the right files.
 
 Vault path resolution order:
-  1. ~/.claude/obsidian-wikilinks.json  {"vault": "/path/to/vault"}
-  2. $OBSIDIAN_VAULT environment variable
-  3. Obsidian's own vault registry (auto-detected, cross-platform)
-  4. ~/Documents/Obsidian (default)
+  1. The current host's config file (~/.codex or ~/.claude)
+  2. The other host's config file (compatibility fallback)
+  3. $OBSIDIAN_VAULT environment variable
+  4. Obsidian's own vault registry (auto-detected, cross-platform)
+  5. ~/Documents/Obsidian (default)
 """
 import difflib
 import json
@@ -17,7 +18,8 @@ import os
 import re
 import sys
 
-CONFIG_FILE = os.path.expanduser("~/.claude/obsidian-wikilinks.json")
+CODEX_CONFIG_FILE = os.path.expanduser("~/.codex/obsidian-wikilinks.json")
+CLAUDE_CONFIG_FILE = os.path.expanduser("~/.claude/obsidian-wikilinks.json")
 SKIP_DIRS = {".obsidian", ".trash", ".git", ".vault-meta"}
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
@@ -50,9 +52,16 @@ def autodetect_vault():
 
 
 def get_vault():
-    if os.path.isfile(CONFIG_FILE):
+    config_files = (
+        (CODEX_CONFIG_FILE, CLAUDE_CONFIG_FILE)
+        if os.environ.get("PLUGIN_ROOT")
+        else (CLAUDE_CONFIG_FILE, CODEX_CONFIG_FILE)
+    )
+    for config_file in config_files:
+        if not os.path.isfile(config_file):
+            continue
         try:
-            with open(CONFIG_FILE) as f:
+            with open(config_file) as f:
                 cfg = json.load(f)
             vault = cfg.get("vault", "")
             if vault:

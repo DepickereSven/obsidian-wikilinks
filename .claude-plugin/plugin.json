@@ -1,6 +1,6 @@
 {
   "name": "obsidian-wikilinks",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Resolve [[wikilinks]] typed in your Claude Code prompt to absolute paths in your Obsidian vault, and inject them as context.",
   "author": {
     "name": "Sven Depickere",
@@ -8,5 +8,11 @@
   },
   "homepage": "https://github.com/DepickereSven/obsidian-wikilinks",
   "repository": "https://github.com/DepickereSven/obsidian-wikilinks",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "wikilinks",
+    "notes",
+    "context"
+  ]
 }
