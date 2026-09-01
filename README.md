@@ -40,6 +40,29 @@ claude plugin install obsidian-wikilinks@depickeresven-obsidian-wikilinks
 
 ## Install in OpenCode
 
+### From npm (recommended)
+
+```bash
+opencode plugin obsidian-wikilinks
+```
+
+That installs the package and adds it to your config. Or add it by hand:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["obsidian-wikilinks"]
+}
+```
+
+Use `~/.config/opencode/opencode.json` for every project, or `opencode.json` in
+a repo for that project only.
+
+> The package is not on npm yet. Until it is published, use one of the local
+> options below, or publish it yourself from a checkout with `npm publish`.
+
+### From a local checkout
+
 OpenCode loads any `.js` / `.ts` file in a plugin directory, and follows
 symlinks. Clone the repo once, then link the plugin:
 
@@ -52,7 +75,7 @@ ln -s ~/.config/opencode/obsidian-wikilinks/plugin/obsidian-wikilinks.js ~/.conf
 Use `.opencode/plugin/` instead of `~/.config/opencode/plugin/` to enable it for
 a single project only.
 
-Alternatively, reference the file from your config instead of symlinking it —
+Alternatively, reference the checkout from your config instead of symlinking —
 `plugin` entries accept `file://` URLs and paths relative to the config file:
 
 ```json
@@ -62,8 +85,9 @@ Alternatively, reference the file from your config instead of symlinking it —
 }
 ```
 
-The plugin finds `hooks/wikilink-resolver.py` next to itself in the checkout. If
-you copy the `.js` file somewhere on its own, point it at the resolver with
+The plugin finds `hooks/wikilink-resolver.py` next to itself, in the checkout or
+in `node_modules`. If you copy the `.js` file somewhere on its own, point it at
+the resolver with
 `OBSIDIAN_WIKILINKS_RESOLVER=/path/to/hooks/wikilink-resolver.py`.
 
 In the common case, no configuration is needed on any host. The plugin reads
@@ -120,7 +144,8 @@ pin a specific one. Create the config file for your host with:
 
 The plugin itself is identical on every device. Update Claude Code with
 `claude plugin update obsidian-wikilinks`. Re-run the Codex `plugin add` command
-to install an updated version there. For OpenCode, `git pull` in the checkout.
+to install an updated version there. For OpenCode, re-run `opencode plugin
+obsidian-wikilinks`, or `git pull` in the checkout.
 
 ## Environment variables
 
