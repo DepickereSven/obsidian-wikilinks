@@ -5,7 +5,9 @@
   "type": "module",
   "main": "plugin/obsidian-wikilinks.js",
   "exports": {
-    ".": "./plugin/obsidian-wikilinks.js"
+    ".": "./plugin/obsidian-wikilinks.js",
+    "./server": "./plugin/obsidian-wikilinks.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "plugin",

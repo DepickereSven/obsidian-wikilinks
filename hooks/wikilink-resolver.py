@@ -74,7 +74,7 @@ def detect_host():
     host = os.environ.get("OBSIDIAN_WIKILINKS_HOST", "").strip().lower()
     if host in CONFIG_FILES:
         return host
-    if os.environ.get("OPENCODE_CONFIG_DIR") or os.environ.get("OPENCODE_CLIENT"):
+    if os.environ.get("OPENCODE") or os.environ.get("OPENCODE_CONFIG_DIR"):
         return "opencode"
     if os.environ.get("PLUGIN_ROOT"):
         return "codex"
