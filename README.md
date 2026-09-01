@@ -1,18 +1,24 @@
 # obsidian-wikilinks
 
-Resolve `[[wikilinks]]` typed in a Codex or Claude Code prompt to absolute paths
-in your Obsidian vault, and inject them as context so the agent reads the right
-notes.
+Resolve `[[wikilinks]]` typed in a Codex, Claude Code, or OpenCode prompt to
+absolute paths in your Obsidian vault, and inject them as context so the agent
+reads the right notes.
 
-This is a **Codex and Claude Code** plugin (it teaches the coding agent about
-`[[ ]]`), not an Obsidian-app plugin.
+This is a **coding-agent** plugin (it teaches Codex / Claude Code / OpenCode
+about `[[ ]]`), not an Obsidian-app plugin.
 
 ## How it works
 
-A `UserPromptSubmit` hook scans each prompt for `[[...]]`, fuzzy-matches each
-target against note and folder names in your vault, and emits the resolved
-absolute paths as additional context. The agent can then read the referenced
-notes when they are relevant to your request.
+The prompt is scanned for `[[...]]`, each target is fuzzy-matched against note
+and folder names in your vault, and the resolved absolute paths are added to the
+prompt as extra context. The agent can then read the referenced notes when they
+are relevant to your request.
+
+All hosts share one resolver, `hooks/wikilink-resolver.py`:
+
+- Codex and Claude Code run it as a `UserPromptSubmit` hook.
+- OpenCode runs it from `plugin/obsidian-wikilinks.js` on the `chat.message`
+  hook, which appends the resolution as a synthetic text part.
 
 ## Install in Codex
 
@@ -32,8 +38,36 @@ claude plugin marketplace add DepickereSven/obsidian-wikilinks
 claude plugin install obsidian-wikilinks@depickeresven-obsidian-wikilinks
 ```
 
-In the common case, no configuration is needed. The plugin reads Obsidian's own
-vault registry and uses your active vault automatically.
+## Install in OpenCode
+
+OpenCode loads any `.js` / `.ts` file in a plugin directory, and follows
+symlinks. Clone the repo once, then link the plugin:
+
+```bash
+git clone https://github.com/DepickereSven/obsidian-wikilinks.git ~/.config/opencode/obsidian-wikilinks
+mkdir -p ~/.config/opencode/plugin
+ln -s ~/.config/opencode/obsidian-wikilinks/plugin/obsidian-wikilinks.js ~/.config/opencode/plugin/
+```
+
+Use `.opencode/plugin/` instead of `~/.config/opencode/plugin/` to enable it for
+a single project only.
+
+Alternatively, reference the file from your config instead of symlinking it —
+`plugin` entries accept `file://` URLs and paths relative to the config file:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["file:///Users/you/src/obsidian-wikilinks/plugin/obsidian-wikilinks.js"]
+}
+```
+
+The plugin finds `hooks/wikilink-resolver.py` next to itself in the checkout. If
+you copy the `.js` file somewhere on its own, point it at the resolver with
+`OBSIDIAN_WIKILINKS_RESOLVER=/path/to/hooks/wikilink-resolver.py`.
+
+In the common case, no configuration is needed on any host. The plugin reads
+Obsidian's own vault registry and uses your active vault automatically.
 
 ## Examples
 
@@ -69,7 +103,9 @@ Vault path resolution order:
 1. The current host's explicit override:
    - Codex: `~/.codex/obsidian-wikilinks.json`
    - Claude Code: `~/.claude/obsidian-wikilinks.json`
-2. The other host's config file, as a compatibility fallback
+   - OpenCode: `~/.config/opencode/obsidian-wikilinks.json`
+     (or `$OPENCODE_CONFIG_DIR` / `$XDG_CONFIG_HOME` when set)
+2. The other hosts' config files, as a compatibility fallback
 3. `$OBSIDIAN_VAULT` environment variable
 4. Obsidian's vault registry — auto-detected (prefers the open vault, else most
    recently opened). Cross-platform (macOS / Windows / Linux).
@@ -84,8 +120,18 @@ pin a specific one. Create the config file for your host with:
 
 The plugin itself is identical on every device. Update Claude Code with
 `claude plugin update obsidian-wikilinks`. Re-run the Codex `plugin add` command
-to install an updated version there.
+to install an updated version there. For OpenCode, `git pull` in the checkout.
+
+## Environment variables
+
+| Variable                        | Purpose                                                      |
+|---------------------------------|--------------------------------------------------------------|
+| `OBSIDIAN_VAULT`                | Vault path, used when no host config file sets one           |
+| `OBSIDIAN_WIKILINKS_RESOLVER`   | Path to `wikilink-resolver.py` (OpenCode only)               |
+| `OBSIDIAN_WIKILINKS_PYTHON`     | Python interpreter to use (default `python3`, OpenCode only) |
+| `OBSIDIAN_WIKILINKS_TIMEOUT_MS` | Resolver timeout in ms (default `10000`, OpenCode only)      |
 
 ## Requirements
 
 - `python3` on PATH (standard-library only; no pip installs).
+- OpenCode only: no extra dependencies — the plugin uses Node/Bun built-ins.
