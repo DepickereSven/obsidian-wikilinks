@@ -91,6 +91,7 @@ function partID() {
     return `prt_wikilink_${stamp}${partCounter.toString(36)}${rand}`
 }
 
+/** @type {import("@opencode-ai/plugin").Plugin} */
 export const ObsidianWikilinksPlugin = async () => {
     return {
         "chat.message": async (_input, output) => {
@@ -118,4 +119,10 @@ export const ObsidianWikilinksPlugin = async () => {
     }
 }
 
-export default ObsidianWikilinksPlugin
+// Default export shape required by opencode for npm and file:// plugin specs
+// (`{ id, server }`); the named export above keeps plugin-directory loading
+// working on older opencode versions that scan named exports.
+export default {
+    id: "obsidian-wikilinks",
+    server: ObsidianWikilinksPlugin,
+}
