@@ -1,0 +1,71 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run every check but do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Node and point npm at the public registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Python, which the wikilink resolver runs on
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Upgrade to npm 11.5.1 or newer, the minimum for trusted publishing over OIDC
+        run: npm install -g npm@latest
+
+      - name: Check the Claude Code and Codex manifests match package.json
+        run: npm run check:versions
+
+      - name: Run the smoke tests before anything is published
+        run: npm test
+
+      - name: Fail if the release tag disagrees with the version in package.json
+        if: github.event_name == 'release'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag=$(echo "$GITHUB_REF_NAME" | sed 's/^v//')
+          if [ "$version" != "$tag" ]; then
+            echo "::error::release tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          echo "publishing $version"
+
+      - name: Fail if this version is already on npm, so a release never overwrites a published one
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::error::$name@$version is already published"
+            exit 1
+          fi
+
+      - name: Publish to npm with provenance, authenticating through trusted publishing
+        if: github.event_name == 'release' || inputs.dry-run == false
+        run: npm publish --provenance --access public
+
+      - name: Rehearse the publish without releasing anything
+        if: github.event_name == 'workflow_dispatch' && inputs.dry-run
+        run: npm publish --provenance --access public --dry-run

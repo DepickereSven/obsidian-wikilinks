@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install Python, which the wikilink resolver runs on
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Check the Claude Code and Codex manifests match package.json
+        run: npm run check:versions
+
+      - name: Run the smoke tests on Node, installing nothing because the plugin uses only built-ins
+        run: npm test
+
+  bun:
+    name: Test (bun)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install the latest Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Python, which the wikilink resolver runs on
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run the same smoke tests on Bun, the runtime OpenCode loads plugins with
+        run: bun test/smoke.mjs
+
+  package:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the npm tarball and list everything it ships
+        run: |
+          mkdir -p /tmp/pack
+          tarball=$(npm pack --pack-destination /tmp/pack --json | node -p "'/tmp/pack/' + JSON.parse(require('fs').readFileSync(0)).at(0).filename")
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+          tar tzf "$tarball" | sort
+
+      - name: Fail unless the tarball ships both the plugin and the resolver it shells out to
+        run: |
+          for entry in package/plugin/obsidian-wikilinks.js package/hooks/wikilink-resolver.py; do
+            tar tzf "$TARBALL" | grep -qx "$entry" || { echo "::error::$entry missing from tarball"; exit 1; }
+          done

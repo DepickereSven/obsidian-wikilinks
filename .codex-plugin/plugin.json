@@ -1,6 +1,6 @@
 {
   "name": "obsidian-wikilinks",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Resolve Obsidian [[wikilinks]] in Codex prompts to local vault paths and inject them as context.",
   "author": {
     "name": "Sven Depickere",
