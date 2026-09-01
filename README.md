@@ -156,6 +156,51 @@ obsidian-wikilinks`, or `git pull` in the checkout.
 | `OBSIDIAN_WIKILINKS_PYTHON`     | Python interpreter to use (default `python3`, OpenCode only) |
 | `OBSIDIAN_WIKILINKS_TIMEOUT_MS` | Resolver timeout in ms (default `10000`, OpenCode only)      |
 
+## Development
+
+```bash
+npm test          # smoke tests on Node
+npm run test:bun  # same tests on Bun, the runtime OpenCode uses
+```
+
+No dependencies to install: the plugin uses Node/Bun built-ins and the resolver
+is standard-library Python.
+
+## Releasing
+
+CI runs the test suite on Node 20/22/24 and on Bun for every push and pull
+request, and checks that the packed tarball ships both `plugin/` and `hooks/`.
+
+To cut a release:
+
+```bash
+npm version patch     # or minor / major
+git push --follow-tags
+gh release create "v$(node -p 'require("./package.json").version')" --generate-notes
+```
+
+`npm version` also rewrites the Claude Code and Codex manifests through
+`scripts/sync-versions.mjs`, so all three stay on one version. Publishing the
+GitHub release triggers `.github/workflows/publish.yml`, which re-runs the
+tests, verifies the tag matches `package.json`, refuses to overwrite a version
+already on npm, and publishes with provenance.
+
+The workflow authenticates through **npm trusted publishing** (OIDC), so no
+token is stored in the repository. One-time setup: on npmjs.com, open the
+package's *Settings -> Trusted publishers*, and add this repository with
+workflow `publish.yml`.
+
+Trusted-publisher settings live on the package, so they can only be configured
+once the package exists. Do the **first** publish by hand from a checkout with
+`npm publish --access public`, then wire up the trusted publisher and let the
+workflow handle every release after that.
+
+To use a granular access token instead, save it as the `NPM_TOKEN` secret and
+uncomment the `NODE_AUTH_TOKEN` block in the workflow.
+
+Use the workflow's manual trigger (`workflow_dispatch`) with *dry run* enabled
+to rehearse a publish without releasing anything.
+
 ## Requirements
 
 - `python3` on PATH (standard-library only; no pip installs).
