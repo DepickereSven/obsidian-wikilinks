@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit hook: resolve [[wikilinks]] in the prompt to Obsidian vault files.
+"""Prompt hook: resolve [[wikilinks]] in the prompt to Obsidian vault files.
 
 Reads the hook JSON on stdin, scans the prompt for [[...]] references,
 fuzzy-matches them against note names in the vault, and emits the resolved
-absolute paths as additionalContext so Claude can read the right files.
+absolute paths as additionalContext so the agent can read the right files.
+
+Hosts: Claude Code and Codex run this as a UserPromptSubmit hook. OpenCode runs
+it through plugin/obsidian-wikilinks.js, which feeds the same stdin payload and
+reads the same stdout JSON.
 
 Vault path resolution order:
-  1. The current host's config file (~/.codex or ~/.claude)
-  2. The other host's config file (compatibility fallback)
+  1. The current host's config file (~/.claude, ~/.codex or ~/.config/opencode)
+  2. The other hosts' config files (compatibility fallback)
   3. $OBSIDIAN_VAULT environment variable
   4. Obsidian's own vault registry (auto-detected, cross-platform)
   5. ~/Documents/Obsidian (default)
@@ -18,8 +22,22 @@ import os
 import re
 import sys
 
-CODEX_CONFIG_FILE = os.path.expanduser("~/.codex/obsidian-wikilinks.json")
-CLAUDE_CONFIG_FILE = os.path.expanduser("~/.claude/obsidian-wikilinks.json")
+CONFIG_NAME = "obsidian-wikilinks.json"
+
+
+def opencode_config_dir():
+    explicit = os.environ.get("OPENCODE_CONFIG_DIR")
+    if explicit:
+        return os.path.expanduser(explicit)
+    xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(xdg, "opencode")
+
+
+CONFIG_FILES = {
+    "claude": os.path.expanduser("~/.claude/" + CONFIG_NAME),
+    "codex": os.path.expanduser("~/.codex/" + CONFIG_NAME),
+    "opencode": os.path.join(opencode_config_dir(), CONFIG_NAME),
+}
 SKIP_DIRS = {".obsidian", ".trash", ".git", ".vault-meta"}
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
@@ -51,13 +69,26 @@ def autodetect_vault():
     return None
 
 
+def detect_host():
+    """Which agent invoked us; decides whose config file wins."""
+    host = os.environ.get("OBSIDIAN_WIKILINKS_HOST", "").strip().lower()
+    if host in CONFIG_FILES:
+        return host
+    if os.environ.get("OPENCODE_CONFIG_DIR") or os.environ.get("OPENCODE_CLIENT"):
+        return "opencode"
+    if os.environ.get("PLUGIN_ROOT"):
+        return "codex"
+    return "claude"
+
+
+def config_file_order():
+    """Current host's config first, the other hosts' files as fallbacks."""
+    host = detect_host()
+    return [CONFIG_FILES[host]] + [v for k, v in CONFIG_FILES.items() if k != host]
+
+
 def get_vault():
-    config_files = (
-        (CODEX_CONFIG_FILE, CLAUDE_CONFIG_FILE)
-        if os.environ.get("PLUGIN_ROOT")
-        else (CLAUDE_CONFIG_FILE, CODEX_CONFIG_FILE)
-    )
-    for config_file in config_files:
+    for config_file in config_file_order():
         if not os.path.isfile(config_file):
             continue
         try:
