@@ -2,8 +2,7 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -11,8 +10,23 @@ permissions:
   contents: read
 
 jobs:
+  manifests:
+    name: manifest versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check the Claude Code and Codex manifests carry the same version as package.json
+        run: npm run check:versions
+
   test:
-    name: Test (node ${{ matrix.node }})
+    name: test (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -32,14 +46,11 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Check the Claude Code and Codex manifests match package.json
-        run: npm run check:versions
-
       - name: Run the smoke tests on Node, installing nothing because the plugin uses only built-ins
         run: npm test
 
   bun:
-    name: Test (bun)
+    name: test (bun)
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
@@ -59,7 +70,7 @@ jobs:
         run: bun test/smoke.mjs
 
   package:
-    name: Package contents
+    name: package contents
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
