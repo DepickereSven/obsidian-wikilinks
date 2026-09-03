@@ -170,7 +170,7 @@ npm run test:bun  # same tests on Bun, the runtime OpenCode uses
 No dependencies to install: the plugin uses Node/Bun built-ins and the resolver
 is standard-library Python.
 
-## Releasing
+### Releasing
 
 Two workflows, chained.
 
@@ -207,18 +207,7 @@ fails the build if they ever drift.
 Use the publish workflow's manual trigger (`workflow_dispatch`) with *dry run*
 enabled to rehearse a publish without releasing anything.
 
-### npm credentials
-
-Publishing authenticates through **npm trusted publishing** (OIDC), so no token
-is stored in the repository. Set it up on npmjs.com under the package's
-*Settings -> Trusted publishers*: GitHub Actions, repository
-`DepickereSven/obsidian-wikilinks`, workflow `publish.yml`.
-
-To use a granular access token instead, save it as the repository secret
-`NPM_TOKEN`; the publish steps read it from `NODE_AUTH_TOKEN` and fall back to
-OIDC when it is unset.
-
-## Requirements
+### Requirements
 
 - `python3` on PATH (standard-library only; no pip installs).
 - OpenCode only: no extra dependencies — the plugin uses Node/Bun built-ins.
