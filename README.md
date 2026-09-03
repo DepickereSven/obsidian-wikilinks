@@ -1,5 +1,12 @@
 # obsidian-wikilinks
 
+[![Claude Code](https://img.shields.io/badge/Claude_Code-supported-D97757?logo=claude&logoColor=white)](#install-in-claude-code)
+[![Codex](https://img.shields.io/badge/Codex-supported-000000?logoColor=white)](#install-in-codex)
+[![OpenCode](https://img.shields.io/badge/OpenCode-supported-FBBF24?logo=opencode&logoColor=white)](#install-in-opencode)
+[![npm](https://img.shields.io/npm/v/obsidian-wikilinks?logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/obsidian-wikilinks)
+[![CI](https://github.com/DepickereSven/obsidian-wikilinks/actions/workflows/ci.yml/badge.svg)](https://github.com/DepickereSven/obsidian-wikilinks/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
 Resolve `[[wikilinks]]` typed in a Codex, Claude Code, or OpenCode prompt to
 absolute paths in your Obsidian vault, and inject them as context so the agent
 reads the right notes.
