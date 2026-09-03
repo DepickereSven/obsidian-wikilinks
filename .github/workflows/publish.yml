@@ -1,8 +1,10 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry-run:
@@ -12,15 +14,21 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   publish:
-    name: Publish to npm
+    name: publish to npm
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
-      - name: Check out the repository
+      - name: Check out the exact commit that CI just proved green
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
 
       - name: Install Node and point npm at the public registry
         uses: actions/setup-node@v4
@@ -28,7 +36,7 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install Python, which the wikilink resolver runs on
+      - name: Install Python, so the tests that npm runs before publishing can execute the resolver
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -36,36 +44,55 @@ jobs:
       - name: Upgrade to npm 11.5.1 or newer, the minimum for trusted publishing over OIDC
         run: npm install -g npm@latest
 
-      - name: Check the Claude Code and Codex manifests match package.json
+      - name: Check the Claude Code and Codex manifests carry the same version as package.json
         run: npm run check:versions
 
-      - name: Run the smoke tests before anything is published
-        run: npm test
-
-      - name: Fail if the release tag disagrees with the version in package.json
-        if: github.event_name == 'release'
-        run: |
-          version=$(node -p "require('./package.json').version")
-          tag=$(echo "$GITHUB_REF_NAME" | sed 's/^v//')
-          if [ "$version" != "$tag" ]; then
-            echo "::error::release tag $GITHUB_REF_NAME does not match package.json version $version"
-            exit 1
-          fi
-          echo "publishing $version"
-
-      - name: Fail if this version is already on npm, so a release never overwrites a published one
+      - name: Decide whether this commit is a release by asking npm if the version is new
+        id: version
         run: |
           name=$(node -p "require('./package.json').name")
           version=$(node -p "require('./package.json').version")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
           if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "::error::$name@$version is already published"
+            echo "is-new=false" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is already on npm, so this commit is not a release"
+          else
+            echo "is-new=true" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is not on npm yet, so this commit is a release"
+          fi
+
+      - name: Fail if a git tag already exists for a version npm has never seen
+        if: steps.version.outputs.is-new == 'true'
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::tag ${{ steps.version.outputs.tag }} already exists but ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }} is not on npm"
             exit 1
           fi
 
-      - name: Publish to npm with provenance, authenticating through trusted publishing
-        if: github.event_name == 'release' || inputs.dry-run == false
+      - name: Publish the new version to npm with provenance
+        if: steps.version.outputs.is-new == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run)
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag the commit and open a GitHub release whose notes are generated from the merged commits
+        if: steps.version.outputs.is-new == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run)
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --target "${{ github.event.workflow_run.head_sha || github.sha }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Rehearse the publish without releasing anything
-        if: github.event_name == 'workflow_dispatch' && inputs.dry-run
+        if: steps.version.outputs.is-new == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry-run
         run: npm publish --provenance --access public --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Report that the version is unchanged and nothing was released
+        if: steps.version.outputs.is-new == 'false'
+        run: echo "${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }} is already published, skipping the release"
