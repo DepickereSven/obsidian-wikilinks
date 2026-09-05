@@ -74,8 +74,6 @@ jobs:
       - name: Publish the new version to npm with provenance
         if: steps.version.outputs.is-new == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run)
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Tag the commit and open a GitHub release whose notes are generated from the merged commits
         if: steps.version.outputs.is-new == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run)
@@ -90,8 +88,6 @@ jobs:
       - name: Rehearse the publish without releasing anything
         if: steps.version.outputs.is-new == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry-run
         run: npm publish --provenance --access public --dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Report that the version is unchanged and nothing was released
         if: steps.version.outputs.is-new == 'false'
