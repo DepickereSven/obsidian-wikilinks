@@ -212,7 +212,7 @@ the Claude Code and Codex manifests on the same version as `package.json` — CI
 fails the build if they ever drift.
 
 Use the publish workflow's manual trigger (`workflow_dispatch`) with *dry run*
-enabled to rehearse a publish without releasing anything.
+enabled to rehearse a publication without releasing anything.
 
 ### Requirements
 
