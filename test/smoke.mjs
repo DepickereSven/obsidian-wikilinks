@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict"
 import {execFileSync} from "node:child_process"
-import {mkdtempSync, mkdirSync, writeFileSync, existsSync} from "node:fs"
+import {existsSync, mkdirSync, mkdtempSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import path from "node:path"
 import {fileURLToPath} from "node:url"
@@ -35,19 +35,33 @@ mkdirSync(path.join(vault, "Meetings"))
 writeFileSync(path.join(vault, "Projects", "Website Redesign.md"), "# Website Redesign\n")
 writeFileSync(path.join(vault, "Meetings", "Weekly.md"), "# Weekly\n")
 process.env.OBSIDIAN_VAULT = vault
+process.env.OBSIDIAN_WIKILINKS_STATE_DIR = mkdtempSync(path.join(tmpdir(), "wikilink-state-"))
 
 const mod = await import(PLUGIN)
+const log = await import(path.join(root, "plugin", "lib", "read-log.js"))
 
 /** Run the chat.message hook over a single user text part. */
-async function chat(text, plugin = mod.default.server) {
+async function chat(text, plugin = mod.default.server, sessionID = "ses_test") {
     const hooks = await plugin({})
     const output = {
-        message: {id: "msg_test", sessionID: "ses_test"},
-        parts: [{id: "prt_test", type: "text", messageID: "msg_test", sessionID: "ses_test", text}],
+        message: {id: "msg_test", sessionID},
+        parts: [{id: "prt_test", type: "text", messageID: "msg_test", sessionID, text}],
     }
-    await hooks["chat.message"]({sessionID: "ses_test"}, output)
+    await hooks["chat.message"]({sessionID}, output)
     return output
 }
+
+/** Simulate opencode finishing a read tool call. */
+async function read(sessionID, filePath, tool = "read") {
+    const hooks = await mod.default.server({directory: vault})
+    await hooks["tool.execute.after"]({tool, sessionID, callID: "call_test", args: {filePath}}, {
+        title: "",
+        output: "",
+        metadata: {}
+    })
+}
+
+const note = (...parts) => path.join(vault, ...parts)
 
 console.log(`plugin module (${typeof Bun === "undefined" ? "node" : "bun"})`)
 
@@ -106,6 +120,79 @@ await test("works through the named export too", async () => {
     assert.equal(parts.length, 2)
 })
 
+console.log("read tracking")
+
+await test("registers the tool.execute.after hook", async () => {
+    const hooks = await mod.default.server({})
+    assert.equal(typeof hooks["tool.execute.after"], "function")
+})
+
+await test("logs linked notes with their resolution", async () => {
+    await chat("Compare [[Website Redesign]] with [[Weekly]] and [[Definitely Not A Note Zzz]]", undefined, "ses_links")
+    const view = log.buildView(log.readEvents("ses_links"))
+    assert.deepEqual(
+        view.links.map((l) => [l.target, l.state]),
+        [["Website Redesign", "unread"], ["Weekly", "unread"], ["Definitely Not A Note Zzz", "missing"]],
+    )
+})
+
+await test("marks a linked note read once the agent reads it", async () => {
+    await read("ses_links", note("Projects", "Website Redesign.md"))
+    const view = log.buildView(log.readEvents("ses_links"))
+    assert.equal(view.links[0].state, "read")
+    assert.equal(view.links[1].state, "unread")
+})
+
+await test("resolves relative read paths against the session directory", async () => {
+    await read("ses_links", path.join("Meetings", "Weekly.md"))
+    assert.equal(log.buildView(log.readEvents("ses_links")).links[1].state, "read")
+})
+
+await test("ignores reads outside the vault and non-read tools", async () => {
+    await chat("Summarize [[Website Redesign]]", undefined, "ses_ignore")
+    await read("ses_ignore", "/etc/hosts")
+    await read("ses_ignore", note("Projects", "Website Redesign.md"), "edit")
+    const events = log.readEvents("ses_ignore")
+    assert.equal(events.filter((e) => e.kind === "read").length, 0)
+})
+
+await test("writes no log for sessions that never linked a note", async () => {
+    await read("ses_nolinks", note("Projects", "Website Redesign.md"))
+    assert.equal(existsSync(log.logPath("ses_nolinks")), false)
+})
+
+await test("lists unlinked vault reads separately", async () => {
+    await chat("Summarize [[Website Redesign]]", undefined, "ses_other")
+    await read("ses_other", note("Meetings", "Weekly.md"))
+    const view = log.buildView(log.readEvents("ses_other"))
+    assert.equal(view.links[0].state, "unread")
+    assert.deepEqual(view.other, [note("Meetings", "Weekly.md")])
+})
+
+await test("a folder link counts as read when a note inside it is read", async () => {
+    await chat("Review [[Meetings]]", undefined, "ses_folder")
+    await read("ses_folder", note("Meetings", "Weekly.md"))
+    assert.equal(log.buildView(log.readEvents("ses_folder")).links[0].state, "read")
+})
+
+await test("renders sidebar rows with read markers", () => {
+    const rows = log.sidebarLines(log.buildView(log.readEvents("ses_links")), {width: 40})
+    assert.deepEqual(rows.map((r) => r.text), [
+        "▼ Obsidian notes  ✓ 2  ○ 1",
+        "  ✓ Website Redesign",
+        "  ✓ Weekly",
+        "  ✗ Definitely Not A Note Zzz (no match)",
+    ])
+    assert.deepEqual(log.sidebarLines(log.buildView([])), [])
+    assert.equal(log.sidebarLines(log.buildView(log.readEvents("ses_links")), {open: false}).length, 1)
+})
+
+// Syntax only: its @opentui/solid and solid-js imports exist inside opencode, not here.
+// Always node, because `bun --check` still resolves imports.
+await test("sidebar module parses", () => {
+    execFileSync("node", ["--check", path.join(root, "plugin", "tui.js")])
+})
+
 console.log("python resolver")
 
 await test("resolver script ships next to the plugin", () => {
@@ -121,6 +208,7 @@ await test("emits the hook JSON contract the other hosts consume", () => {
     const payload = JSON.parse(out)
     assert.equal(payload.hookSpecificOutput.hookEventName, "UserPromptSubmit")
     assert.ok(payload.hookSpecificOutput.additionalContext.includes("Website Redesign.md"))
+    assert.equal(payload.obsidianWikilinks, undefined, "structured links must stay opt-in")
 })
 
 await test("stays silent when there is nothing to resolve", () => {
