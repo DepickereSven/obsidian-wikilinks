@@ -88,8 +88,8 @@ jobs:
           echo "TARBALL=$tarball" >> "$GITHUB_ENV"
           tar tzf "$tarball" | sort
 
-      - name: Fail unless the tarball ships both the plugin and the resolver it shells out to
+      - name: Fail unless the tarball ships the plugin, its sidebar, and the resolver it shells out to
         run: |
-          for entry in package/plugin/obsidian-wikilinks.js package/hooks/wikilink-resolver.py; do
+          for entry in package/plugin/obsidian-wikilinks.js package/plugin/tui.js package/plugin/lib/read-log.js package/hooks/wikilink-resolver.py; do
             tar tzf "$TARBALL" | grep -qx "$entry" || { echo "::error::$entry missing from tarball"; exit 1; }
           done
