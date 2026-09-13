@@ -178,27 +178,38 @@ def main():
 
     index = build_index(vault)
     lines = []
+    links = []
     for target in dict.fromkeys(targets):  # dedupe, keep order
         hits = resolve(target, index)
+        paths = [h[2] for h in hits]
         if not hits:
+            status = "missing"
             lines.append(f"[[{target}]] -> no match found in vault {vault}")
         elif len(hits) == 1:
+            status = "resolved"
             lines.append(f"[[{target}]] -> {hits[0][2]}")
         else:
-            opts = ", ".join(h[2] for h in hits)
+            status = "ambiguous"
+            opts = ", ".join(paths)
             lines.append(f"[[{target}]] -> ambiguous, candidates: {opts}")
+        links.append({"target": target.strip(), "status": status, "paths": paths})
 
     context = (
         "Obsidian wikilink resolution (vault: " + vault + "):\n"
         + "\n".join(lines)
         + "\nRead the resolved file(s) when their content is relevant to the request."
     )
-    print(json.dumps({
+    output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
             "additionalContext": context,
         }
-    }))
+    }
+    # Structured links for the OpenCode sidebar. Opt-in, so the Claude Code and
+    # Codex hook output stays exactly the documented shape.
+    if os.environ.get("OBSIDIAN_WIKILINKS_EMIT_LINKS"):
+        output["obsidianWikilinks"] = {"vault": vault, "links": links}
+    print(json.dumps(output))
     sys.exit(0)
 
 
