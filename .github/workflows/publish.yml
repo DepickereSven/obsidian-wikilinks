@@ -1,12 +1,19 @@
 name: Publish
 
 on:
+  pull_request:
+    types: [ labeled, synchronize, reopened ]
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
+      channel:
+        description: "latest publishes package.json's version as a release; dev publishes a prerelease candidate of the selected branch under the dev dist-tag"
+        type: choice
+        options: [latest, dev]
+        default: latest
       dry-run:
         description: "Run every check but do not publish"
         type: boolean
@@ -16,9 +23,90 @@ permissions:
   contents: read
 
 jobs:
+  dev-candidate:
+    name: publish dev candidate to npm
+    if: >-
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'release:dev') &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && inputs.channel == 'dev')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dev-candidate-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the pull request head, or the branch the manual run was started on
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Node and point npm at the public registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Python, so the tests that npm runs before publishing can execute the resolver
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Upgrade to npm 11.5.1 or newer, the minimum for trusted publishing over OIDC
+        run: npm install -g npm@latest
+
+      - name: Assign a unique prerelease version that sorts above the latest release
+        id: version
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          base=$(node -p "require('./package.json').version.split('-')[0]")
+          # If package.json still carries a released version, target the next
+          # patch so the candidate is newer than what is on npm, not older.
+          if npm view "$name@$base" version >/dev/null 2>&1; then
+            base=$(node -p "const [a,b,c]='$base'.split('.').map(Number); [a,b,c+1].join('.')")
+          fi
+          source=${PR_NUMBER:+pr$PR_NUMBER}
+          source=${source:-run}
+          version="$base-dev.$source.${{ github.run_id }}.${{ github.run_attempt }}"
+          npm version "$version" --no-git-tag-version --ignore-scripts
+          npm run sync:versions
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if the candidate version somehow already exists on npm
+        run: |
+          if npm view "${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "::error::${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }} already exists on npm"
+            exit 1
+          fi
+
+      - name: Publish the dev candidate to npm with provenance under the dev dist-tag
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        run: npm publish --provenance --access public --tag dev
+
+      - name: Rehearse the dev candidate publish without releasing anything
+        if: github.event_name == 'workflow_dispatch' && inputs.dry-run
+        run: npm publish --provenance --access public --tag dev --dry-run
+
+      - name: Summarise how to install the candidate
+        run: |
+          {
+            echo "### Dev candidate \`${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}\`"
+            echo
+            echo '```sh'
+            echo "npm install ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: publish to npm
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.channel != 'dev') ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

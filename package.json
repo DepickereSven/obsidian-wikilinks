@@ -7,8 +7,13 @@
   "exports": {
     ".": "./plugin/obsidian-wikilinks.js",
     "./server": "./plugin/obsidian-wikilinks.js",
+    "./tui": "./plugin/tui.js",
     "./package.json": "./package.json"
   },
+  "oc-plugin": [
+    "server",
+    "tui"
+  ],
   "scripts": {
     "test": "node test/smoke.mjs",
     "test:bun": "bun test/smoke.mjs",
