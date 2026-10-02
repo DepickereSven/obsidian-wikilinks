@@ -14,5 +14,7 @@
     "wikilinks",
     "notes",
     "context"
-  ]
+  ],
+  "hooks": "./claude/hooks.json",
+  "types": "./claude/types.d.ts"
 }
