@@ -60,7 +60,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'obsidian-notes' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Obsidian notes' })
+    await $.ui.open({ id: PANE, title: 'Obsidian notes', columns: 40 })
 
     return { text: 'Obsidian notes pane opened.' }
   })
@@ -84,7 +84,7 @@ export const register: Register = on => {
       const before = await read($, links)
       await update($, links, list => mergeLinks(list ?? [], incoming))
       await showStatus($)
-      if (!before.length) void $.ui.open({ id: PANE, title: 'Obsidian notes' })
+      if (!before.length) void $.ui.open({ id: PANE, title: 'Obsidian notes', columns: 40 })
     }
 
     return ran
