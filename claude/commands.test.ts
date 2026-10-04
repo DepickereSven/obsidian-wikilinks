@@ -1,4 +1,12 @@
+import type { CommandRunInput } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
+
+const TOGGLE: CommandRunInput = {
+  command: 'obsidian-notes',
+  args: '',
+  origin: { kind: 'composer' },
+  presentation: { isFullscreen: true, columns: 160 },
+}
 
 test('/obsidian-notes toggles the pane', async ($, on) => {
   const opened: string[] = []
@@ -18,12 +26,12 @@ test('/obsidian-notes toggles the pane', async ($, on) => {
     return { value: undefined }
   })
 
-  await $.command.run({ command: 'obsidian-notes', args: '' })
+  await $.command.run(TOGGLE)
   expect(opened).toEqual(['obsidian-notes'])
 
-  await $.command.run({ command: 'obsidian-notes', args: '' })
+  await $.command.run(TOGGLE)
   expect(closed).toEqual(['obsidian-notes'])
 
-  await $.command.run({ command: 'obsidian-notes', args: '' })
+  await $.command.run(TOGGLE)
   expect(opened).toEqual(['obsidian-notes', 'obsidian-notes'])
 })
