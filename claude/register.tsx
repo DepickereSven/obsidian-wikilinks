@@ -12,6 +12,7 @@ import { buildView, counts, insideVault, mergeLinks, paneLines } from './view'
 import type { Tone } from './view'
 
 const PANE = 'obsidian-notes'
+const OPEN = { id: PANE, title: 'Obsidian notes', columns: 40 }
 const WIKILINK = /\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/
 const links = atom({ plugin: 'obsidian-wikilinks', key: 'links' } as const, [])
 const reads = atom({ plugin: 'obsidian-wikilinks', key: 'reads' } as const, [])
@@ -52,7 +53,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'obsidian-notes',
-      description: 'Show which [[wikilinked]] Obsidian notes the agent has read',
+      description: 'Show or hide the pane of [[wikilinked]] Obsidian notes the agent has read',
     })
     await showStatus($)
 
@@ -60,8 +61,14 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'obsidian-notes' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Obsidian notes', columns: 40 })
+    // A pane opened unasked on a narrow terminal waits unplaced; the command places it.
+    const shown = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isPlaced)
+    if (shown) {
+      await $.ui.close({ id: PANE })
+      return { text: 'Obsidian notes pane hidden. /obsidian-notes shows it again.' }
+    }
 
+    await $.ui.open(OPEN)
     return { text: 'Obsidian notes pane opened.' }
   })
 
@@ -84,7 +91,7 @@ export const register: Register = on => {
       const before = await read($, links)
       await update($, links, list => mergeLinks(list ?? [], incoming))
       await showStatus($)
-      if (!before.length) void $.ui.open({ id: PANE, title: 'Obsidian notes', columns: 40 })
+      if (!before.length) void $.ui.open(OPEN)
     }
 
     return ran
